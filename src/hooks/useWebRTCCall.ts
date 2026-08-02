@@ -9,13 +9,51 @@ interface UseWebRTCCallProps {
   deviceOptions: MediaDeviceOptions;
 }
 
-const ICE_SERVERS: RTCConfiguration = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-  ],
+// Build ICE servers from environment so TURN credentials can be injected at build time.
+const buildIceServers = (): RTCConfiguration => {
+  const env: any = import.meta.env || {};
+  const iceServers: RTCIceServer[] = [];
+
+  // Default public Google STUN servers
+  iceServers.push({ urls: 'stun:stun.l.google.com:19302' });
+  iceServers.push({ urls: 'stun:stun1.l.google.com:19302' });
+  iceServers.push({ urls: 'stun:stun2.l.google.com:19302' });
+
+  // Support comma-separated TURN URLs in VITE_TURN_URLS (e.g. "turn:turn.example.org:3478,turn:turn2:3478")
+  const turnUrls = env.VITE_TURN_URLS || env.VITE_TURN_URL;
+  if (turnUrls) {
+    turnUrls
+      .toString()
+      .split(',')
+      .map((s: string) => s.trim())
+      .filter(Boolean)
+      .forEach((url: string) => {
+        const server: RTCIceServer = { urls: url } as RTCIceServer;
+        if (env.VITE_TURN_USER) server.username = env.VITE_TURN_USER;
+        if (env.VITE_TURN_PASS) server.credential = env.VITE_TURN_PASS;
+        iceServers.push(server);
+      });
+  }
+
+  // Optionally support a full JSON array via VITE_ICE_SERVERS
+  if (env.VITE_ICE_SERVERS) {
+    try {
+      const parsed = JSON.parse(env.VITE_ICE_SERVERS);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((s) => {
+          // Expect objects compatible with RTCIceServer
+          iceServers.push(s as RTCIceServer);
+        });
+      }
+    } catch (e) {
+      // ignore JSON parse errors
+    }
+  }
+
+  return { iceServers } as RTCConfiguration;
 };
+
+const ICE_SERVERS = buildIceServers();
 
 export function useWebRTCCall({
   roomId,
