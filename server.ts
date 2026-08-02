@@ -103,6 +103,25 @@ app.get('/api/rooms/:roomId', (req, res) => {
   });
 });
 
+app.get('/api/turn-credentials', async (req, res) => {
+  try {
+    const apiKey = process.env.TURN_API_KEY ?? 'Ymj2-YeKpNzic5WahZeqZwgLdBhymRT-7o_4EOrZY9PZZpoE';
+    const response = await fetch(
+      `https://wemmetcalllg.metered.live/api/v1/turn/credentials?apiKey=${encodeURIComponent(apiKey)}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`TURN credential request failed with status ${response.status}`);
+    }
+
+    const iceServers = await response.json();
+    res.json(iceServers);
+  } catch (err) {
+    console.error('Failed to fetch TURN credentials', err);
+    res.status(500).json({ error: 'Failed to fetch TURN credentials' });
+  }
+});
+
 // WebSocket signaling & real-time communication server
 wss.on('connection', (ws) => {
   let clientRef: ClientConnection | null = null;

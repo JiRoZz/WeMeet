@@ -54,6 +54,32 @@ const buildIceServers = (): RTCConfiguration => {
 };
 
 const ICE_SERVERS = buildIceServers();
+let cachedIceServers: RTCIceServer[] | null = null;
+
+async function getIceServers(): Promise<RTCIceServer[]> {
+  if (cachedIceServers) {
+    return cachedIceServers;
+  }
+
+  try {
+    const response = await fetch('/api/turn-credentials');
+    if (!response.ok) {
+      throw new Error(`Failed to fetch TURN credentials: ${response.status}`);
+    }
+
+    const iceServers = await response.json();
+    if (Array.isArray(iceServers)) {
+      cachedIceServers = iceServers;
+      return iceServers;
+    }
+
+    console.warn('Unexpected TURN credentials payload, using fallback ICE servers', iceServers);
+  } catch (err) {
+    console.warn('Could not fetch TURN credentials, falling back to default ICE servers', err);
+  }
+
+  return ICE_SERVERS.iceServers;
+}
 
 export function useWebRTCCall({
   roomId,
@@ -136,13 +162,14 @@ export function useWebRTCCall({
 
   // Create or retrieve peer connection with a target remote user
   const createPeerConnection = useCallback(
-    (targetUserId: string) => {
+    async (targetUserId: string) => {
       if (!currentUser || !roomId) return null;
       if (peerConnectionsRef.current.has(targetUserId)) {
         return peerConnectionsRef.current.get(targetUserId)!;
       }
 
-      const pc = new RTCPeerConnection(ICE_SERVERS);
+      const iceServers = await getIceServers();
+      const pc = new RTCPeerConnection({ iceServers });
       peerConnectionsRef.current.set(targetUserId, pc);
 
       // Add local stream tracks to PC
@@ -199,7 +226,7 @@ export function useWebRTCCall({
   const initiateCallWithUser = useCallback(
     async (targetUserId: string) => {
       if (!currentUser || !roomId) return;
-      const pc = createPeerConnection(targetUserId);
+      const pc = await createPeerConnection(targetUserId);
       if (!pc) return;
 
       try {
@@ -232,7 +259,7 @@ export function useWebRTCCall({
       switch (type) {
         case 'webrtc_offer': {
           if (offer) {
-            const pc = createPeerConnection(senderUserId);
+            const pc = await createPeerConnection(senderUserId);
             if (!pc) return;
 
             try {

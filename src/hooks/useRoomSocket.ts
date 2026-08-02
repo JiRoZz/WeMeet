@@ -28,21 +28,40 @@ export function useRoomSocket({ roomId, currentUser, onWebRTCSignaling }: UseRoo
   useEffect(() => {
     if (!roomId || !currentUser) return;
 
-    function connect() {
+    async function connect() {
       const defaultProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const defaultUrl = `${defaultProtocol}//${window.location.host}/ws`;
       const wsUrl = import.meta.env.VITE_WS_URL || defaultUrl;
+
+      // Request short-lived token from server
+      let token: string | undefined;
+      try {
+        const resp = await fetch('/api/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user: currentUser, roomId }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          token = data.token;
+        } else {
+          console.warn('Token endpoint returned', resp.status);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch token:', err);
+      }
 
       const ws = new WebSocket(wsUrl);
       socketRef.current = ws;
 
       ws.onopen = () => {
         setIsConnected(true);
-        // Join room
+        // Join room (include token if available)
         send({
           type: 'join_room',
           roomId,
           user: currentUser,
+          token,
         });
       };
 
