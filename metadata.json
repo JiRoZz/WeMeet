@@ -1,0 +1,6 @@
+{
+  "name": "WeMeet",
+  "description": "Live video calling, room sync, real-time chat, and authentication with WeMeet.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

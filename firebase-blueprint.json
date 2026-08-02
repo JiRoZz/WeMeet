@@ -1,0 +1,29 @@
+{
+  "entities": {
+    "users": {
+      "title": "Users",
+      "description": "Registered users in WeMeet",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName"]
+    },
+    "rooms": {
+      "title": "Rooms",
+      "description": "Video call rooms",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string" },
+        "name": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["roomId", "createdBy"]
+    }
+  }
+}
