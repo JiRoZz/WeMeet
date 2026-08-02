@@ -1,4 +1,6 @@
 import express from 'express';
+import 'dotenv/config';
+import jwt from 'jsonwebtoken';
 import http from 'http';
 import path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -26,6 +28,22 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 const PORT = 3000;
 
 app.use(express.json());
+
+// Simple token issuance endpoint for clients.
+// Clients POST { user, roomId } to receive a short-lived JWT.
+app.post('/api/token', (req, res) => {
+  const { user, roomId } = req.body;
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    return res.status(500).json({ error: 'Server JWT secret not configured' });
+  }
+  if (!user || !roomId) {
+    return res.status(400).json({ error: 'Missing user or roomId' });
+  }
+
+  const token = jwt.sign({ user, roomId }, secret, { expiresIn: '5m' });
+  res.json({ token });
+});
 
 // In-memory room store
 const rooms = new Map<string, RoomData>();
@@ -97,6 +115,29 @@ wss.on('connection', (ws) => {
       if (!roomId) return;
 
       if (type === 'join_room' && msg.user) {
+        const token = msg.token as string | undefined;
+        const secret = process.env.JWT_SECRET;
+
+        if (secret) {
+          if (!token) {
+            // reject join without token when secret is configured
+            ws.send(JSON.stringify({ type: 'error', message: 'Missing auth token' }));
+            return;
+          }
+
+          try {
+            const payload = jwt.verify(token, secret) as any;
+            // ensure token is for this room and user
+            if (!payload || payload.roomId !== msg.roomId || payload.user?.id !== msg.user.id) {
+              ws.send(JSON.stringify({ type: 'error', message: 'Invalid token payload' }));
+              return;
+            }
+          } catch (err) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Invalid or expired token' }));
+            return;
+          }
+        }
+
         const user = msg.user;
         const room = getOrCreateRoom(roomId, user.id);
 
