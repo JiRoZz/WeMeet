@@ -193,6 +193,27 @@ export function useWebRTCCall({
         }
       };
 
+      // Handle renegotiation — fires when tracks are added/replaced after the
+      // initial offer/answer (e.g. localStream finishes loading late, or
+      // screen share starts). Without this, addTrack() after the first
+      // negotiation silently does nothing on the wire.
+      pc.onnegotiationneeded = async () => {
+        try {
+          if (pc.signalingState !== 'stable') return; // avoid glare
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          sendSignaling({
+            type: 'webrtc_offer',
+            roomId,
+            senderUserId: currentUser.id,
+            targetUserId,
+            offer,
+          });
+        } catch (err) {
+          console.error('Renegotiation failed:', err);
+        }
+      };
+
       // Handle remote track arrival
       pc.ontrack = (event) => {
         if (event.streams && event.streams[0]) {
